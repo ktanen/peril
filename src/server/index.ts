@@ -43,7 +43,9 @@ async function main() {
       console.log("Publishing paused game state");
 
     } catch (error) {
-      console.log(`Publishing of pause message failed with error ${error}`);
+      if (error instanceof Error) {
+        console.error(`Publishing of pause message failed with error ${error.message}`);
+      }
     }
     } else if (command === "resume") {
     const state: PlayingState = {
@@ -54,7 +56,9 @@ async function main() {
       console.log("Publishing resumed game state");
 
     } catch (error) {
-      console.log(`Publishing of resume message failed with error ${error}`);
+      if (error instanceof Error) {
+        console.error(`Publishing of resume message failed with error ${error.message}`);
+      }
     }
     } else if (command === "quit") {
       console.log("Exiting server");
