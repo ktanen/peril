@@ -55,8 +55,6 @@ async function main() {
           console.error(error.message);
         }
         
-      } finally {
-        continue;
       }
     } else if (command === "move") {
       try {
@@ -68,15 +66,13 @@ async function main() {
           console.error(error.message);
         }
           
-      } finally {
-        continue;
       }
     } else if (command === "status") {
       await commandStatus(gameState);
-      continue;
+      
     } else if (command === "help") {
       printClientHelp();
-      continue;
+      
     } else if (command === "spam") {
       console.log("Spamming not allowed yet!");
     } else if (command === "quit") {
