@@ -2,6 +2,7 @@ import amqp from "amqplib";
 import { publishJSON } from "../internal/pubsub/publish.js";
 import { PauseKey, ExchangePerilDirect } from "../internal/routing/routing.js";
 import { type PlayingState } from "../internal/gamelogic/gamestate.js";
+import { printServerHelp, getInput } from "../internal/gamelogic/gamelogic.js";
 
 async function shutdown(conn: amqp.ChannelModel, signal: string) {
   console.log(`received ${signal}, shutting down...`);
@@ -15,24 +16,55 @@ async function shutdown(conn: amqp.ChannelModel, signal: string) {
 }
 
 async function main() {
+
   const rabbitConnString = "amqp://guest:guest@localhost:5672/";
   const conn = await amqp.connect(rabbitConnString);
   console.log("Connection successful");
   process.on("SIGINT", () => shutdown(conn, "SIGINT"));
   process.on("SIGTERM", () => shutdown(conn, "SIGTERM"));
-
   const confirmChannel = await conn.createConfirmChannel();
-  const state: PlayingState = {
-    isPaused: true,
-  };
+  printServerHelp();
+  while (true) {
 
-  try {
-    await publishJSON(confirmChannel, ExchangePerilDirect, PauseKey, state);
-    console.log("Message published");
+    const userInput = await getInput("Please enter a command:\n");
 
-  } catch (error) {
-    console.log(`Publishing of pause message failed with error ${error}`);
+    if (userInput.length === 0) {
+      continue;
+    }
+
+    const command = userInput[0];
+
+    if (command === "pause") {
+    const state: PlayingState = {
+      isPaused: true,
+    };
+    try {
+      await publishJSON(confirmChannel, ExchangePerilDirect, PauseKey, state);
+      console.log("Publishing paused game state");
+
+    } catch (error) {
+      console.log(`Publishing of pause message failed with error ${error}`);
+    }
+    } else if (command === "resume") {
+    const state: PlayingState = {
+      isPaused: false,
+    };
+    try {
+      await publishJSON(confirmChannel, ExchangePerilDirect, PauseKey, state);
+      console.log("Publishing resumed game state");
+
+    } catch (error) {
+      console.log(`Publishing of resume message failed with error ${error}`);
+    }
+    } else if (command === "quit") {
+      console.log("Exiting server");
+      process.exit(0);
+    } else {
+      console.log("I don't understand that command.");
+    }
+
   }
+
 
 
 
