@@ -16,7 +16,6 @@ export function handlerMove(gs: GameState): (move: ArmyMove) => AckType {
     return (move: ArmyMove) => {
         const outcome = handleMove(gs, move);
 
-        console.log("move outcome:", outcome);
 
         process.stdout.write("> ");
         

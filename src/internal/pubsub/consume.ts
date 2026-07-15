@@ -26,6 +26,9 @@ export async function declareAndBind(
         "durable": true,
         "autoDelete": true,
         "exclusive": true,
+        "arguments": {
+            "x-dead-letter-exchange": "peril_dlx",
+        },
     };
 
     if (queueType === SimpleQueueType.Durable) {
@@ -67,7 +70,7 @@ export async function subscribeJSON<T>(
                 
             }
             channel.nack(msg, false, false)
-            
+            console.log("NackDiscard");
             return;
         }
         
@@ -77,7 +80,7 @@ export async function subscribeJSON<T>(
         }  catch (error) {
             if (error instanceof Error) {
                 console.error(error.message);
-                
+                console.log("NackDiscard");
             }
 
             channel.nack(msg, false, false)
@@ -89,15 +92,15 @@ export async function subscribeJSON<T>(
         switch (ackType) {
             case AckType.Ack:
                 channel.ack(msg);
-                
+                console.log("Ack");
                 break;
             case AckType.NackRequeue:
                 channel.nack(msg, false, true);
-                
+                console.log("NackRequeue");
                 break;
             case AckType.NackDiscard:
                 channel.nack(msg, false, false);
-                
+                console.log("NackDiscard");
                 break;
             default:
                 const unreachable: never = ackType;
