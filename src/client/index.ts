@@ -1,12 +1,14 @@
 import amqp from "amqplib";
 import { clientWelcome } from "../internal/gamelogic/gamelogic.js";
 import { declareAndBind, SimpleQueueType, subscribeJSON } from "../internal/pubsub/consume.js";
-import { ExchangePerilDirect, PauseKey  } from "../internal/routing/routing.js";
+import { ExchangePerilDirect, PauseKey, ArmyMovesPrefix, 
+  ExchangePerilTopic } from "../internal/routing/routing.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
 import { getInput, commandStatus, printClientHelp, printQuit } from "../internal/gamelogic/gamelogic.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
-import { handlerPause } from "./handlers.js";
+import { handlerPause, handlerMove } from "./handlers.js";
+import { publishJSON } from "../internal/pubsub/publish.js";
 
 async function shutdown(conn: amqp.ChannelModel, signal: string) {
   console.log(`received ${signal}, shutting down...`);
@@ -26,9 +28,19 @@ async function main() {
   console.log("Connection successful");
   process.on("SIGINT", () => shutdown(conn, "SIGINT"));
   process.on("SIGTERM", () => shutdown(conn, "SIGTERM"));
+
+  const confirmChannel = await conn.createConfirmChannel();
   const username = await clientWelcome();
+
+  const moveQueueName = `${ArmyMovesPrefix}.${username}`;
+  const moveKey = `${ArmyMovesPrefix}.*`;
+
+  // Declare and bind queues
   await  declareAndBind(conn, ExchangePerilDirect,
   `pause.${username}`, PauseKey, SimpleQueueType.Transient);
+
+  await declareAndBind(conn, ExchangePerilTopic, moveQueueName,
+    moveKey, SimpleQueueType.Transient);
   
   // Create new game state
 
@@ -36,6 +48,9 @@ async function main() {
 
   await subscribeJSON(conn, ExchangePerilDirect, `pause.${username}`,
     PauseKey, SimpleQueueType.Transient, handlerPause(gameState));
+
+    await subscribeJSON(conn, ExchangePerilTopic, moveQueueName,
+      moveKey, SimpleQueueType.Transient, handlerMove(gameState));
   
 
   // REPL loop
@@ -65,7 +80,11 @@ async function main() {
       try {
         const move = commandMove(gameState, userInput);
         //console.log("Move successful");
-        
+
+        await publishJSON(confirmChannel, ExchangePerilTopic, moveKey, move);
+
+          console.log("Move published successfully")
+
       } catch (error) {
         if (error instanceof Error) {
           console.error(error.message);
