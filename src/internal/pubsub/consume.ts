@@ -1,5 +1,6 @@
 import amqp from "amqplib";
 import { type Channel } from "amqplib";
+
 export enum SimpleQueueType {
   Durable,
   Transient,
@@ -35,4 +36,28 @@ export async function declareAndBind(
     return [channel, queue];
 
 
+}
+
+export async function subscribeJSON<T>(
+  conn: amqp.ChannelModel,
+  exchange: string,
+  queueName: string,
+  key: string,
+  queueType: SimpleQueueType,
+  handler: (data: T) => void,
+): Promise<void> {
+    const [channel, queue] = await declareAndBind(conn, exchange, queueName, key, queueType);
+
+    channel.consume(queue.queue, (msg: amqp.ConsumeMessage | null) => {
+        if (msg === null) {
+            return;
+        }
+        const messageContent = JSON.parse(msg.content.toString());
+
+        handler(messageContent);
+
+        channel.ack(msg);
+
+
+    });
 }

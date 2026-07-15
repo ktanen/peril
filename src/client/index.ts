@@ -1,11 +1,12 @@
 import amqp from "amqplib";
 import { clientWelcome } from "../internal/gamelogic/gamelogic.js";
-import { declareAndBind, SimpleQueueType } from "../internal/pubsub/consume.js";
+import { declareAndBind, SimpleQueueType, subscribeJSON } from "../internal/pubsub/consume.js";
 import { ExchangePerilDirect, PauseKey  } from "../internal/routing/routing.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
 import { getInput, commandStatus, printClientHelp, printQuit } from "../internal/gamelogic/gamelogic.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
+import { handlerPause } from "./handlers.js";
 
 async function shutdown(conn: amqp.ChannelModel, signal: string) {
   console.log(`received ${signal}, shutting down...`);
@@ -32,6 +33,10 @@ async function main() {
   // Create new game state
 
   const gameState = new GameState(username);
+
+  await subscribeJSON(conn, ExchangePerilDirect, `pause.${username}`,
+    PauseKey, SimpleQueueType.Transient, handlerPause(gameState));
+  
 
   // REPL loop
 
