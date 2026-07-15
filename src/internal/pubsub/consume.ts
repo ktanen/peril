@@ -6,6 +6,12 @@ export enum SimpleQueueType {
   Transient,
 }
 
+export enum AckType {
+    Ack,
+    NackRequeue,
+    NackDiscard,
+}
+
 export async function declareAndBind(
   conn: amqp.ChannelModel,
   exchange: string,
@@ -44,7 +50,7 @@ export async function subscribeJSON<T>(
   queueName: string,
   key: string,
   queueType: SimpleQueueType,
-  handler: (data: T) => void,
+  handler: (data: T) => AckType,
 ): Promise<void> {
     const [channel, queue] = await declareAndBind(conn, exchange, queueName, key, queueType);
 
@@ -52,12 +58,52 @@ export async function subscribeJSON<T>(
         if (msg === null) {
             return;
         }
-        const messageContent = JSON.parse(msg.content.toString());
+        let messageContent;
+        try {
+            messageContent = JSON.parse(msg.content.toString());
+        } catch (error) {
+            if (error instanceof Error) {
+                console.error(error.message);
+                
+            }
+            channel.nack(msg, false, false)
+            
+            return;
+        }
+        
+        let ackType;
+        try {
+            ackType = handler(messageContent);
+        }  catch (error) {
+            if (error instanceof Error) {
+                console.error(error.message);
+                
+            }
 
-        handler(messageContent);
+            channel.nack(msg, false, false)
+            
+            return;
+        }
+        
 
-        channel.ack(msg);
-
+        switch (ackType) {
+            case AckType.Ack:
+                channel.ack(msg);
+                
+                break;
+            case AckType.NackRequeue:
+                channel.nack(msg, false, true);
+                
+                break;
+            case AckType.NackDiscard:
+                channel.nack(msg, false, false);
+                
+                break;
+            default:
+                const unreachable: never = ackType;
+                console.error("Unexpected ack type:", unreachable);
+                return;
+        }
 
     });
 }
