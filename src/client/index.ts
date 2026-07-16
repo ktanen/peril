@@ -2,12 +2,12 @@ import amqp from "amqplib";
 import { clientWelcome } from "../internal/gamelogic/gamelogic.js";
 import { declareAndBind, SimpleQueueType, subscribeJSON } from "../internal/pubsub/consume.js";
 import { ExchangePerilDirect, PauseKey, ArmyMovesPrefix, 
-  ExchangePerilTopic } from "../internal/routing/routing.js";
+  ExchangePerilTopic, WarRecognitionsPrefix } from "../internal/routing/routing.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
 import { getInput, commandStatus, printClientHelp, printQuit } from "../internal/gamelogic/gamelogic.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
-import { handlerPause, handlerMove } from "./handlers.js";
+import { handlerPause, handlerMove, handlerWar } from "./handlers.js";
 import { publishJSON } from "../internal/pubsub/publish.js";
 
 async function shutdown(conn: amqp.ChannelModel, signal: string) {
@@ -35,12 +35,12 @@ async function main() {
   const moveQueueName = `${ArmyMovesPrefix}.${username}`;
   const moveKey = `${ArmyMovesPrefix}.*`;
 
-  // Declare and bind queues
+/*   // Declare and bind queues
   await  declareAndBind(conn, ExchangePerilDirect,
   `pause.${username}`, PauseKey, SimpleQueueType.Transient);
 
   await declareAndBind(conn, ExchangePerilTopic, moveQueueName,
-    moveKey, SimpleQueueType.Transient);
+    moveKey, SimpleQueueType.Transient); */
   
   // Create new game state
 
@@ -50,7 +50,14 @@ async function main() {
     PauseKey, SimpleQueueType.Transient, handlerPause(gameState));
 
     await subscribeJSON(conn, ExchangePerilTopic, moveQueueName,
-      moveKey, SimpleQueueType.Transient, handlerMove(gameState));
+      moveKey, SimpleQueueType.Transient, handlerMove(gameState, confirmChannel));
+
+    const warKey = `${WarRecognitionsPrefix}.*`;
+
+    await subscribeJSON(conn, ExchangePerilTopic, "war", warKey, SimpleQueueType.Durable, 
+      handlerWar(gameState));
+    
+
   
 
   // REPL loop

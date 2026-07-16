@@ -53,11 +53,11 @@ export async function subscribeJSON<T>(
   queueName: string,
   key: string,
   queueType: SimpleQueueType,
-  handler: (data: T) => AckType,
+  handler: (data: T) => Promise<AckType> | AckType,
 ): Promise<void> {
     const [channel, queue] = await declareAndBind(conn, exchange, queueName, key, queueType);
 
-    channel.consume(queue.queue, (msg: amqp.ConsumeMessage | null) => {
+    channel.consume(queue.queue, async (msg: amqp.ConsumeMessage | null) => {
         if (msg === null) {
             return;
         }
@@ -70,17 +70,17 @@ export async function subscribeJSON<T>(
                 
             }
             channel.nack(msg, false, false)
-            console.log("NackDiscard");
+            
             return;
         }
         
         let ackType;
         try {
-            ackType = handler(messageContent);
+            ackType = await handler(messageContent);
         }  catch (error) {
             if (error instanceof Error) {
                 console.error(error.message);
-                console.log("NackDiscard");
+                
             }
 
             channel.nack(msg, false, false)
@@ -92,15 +92,12 @@ export async function subscribeJSON<T>(
         switch (ackType) {
             case AckType.Ack:
                 channel.ack(msg);
-                console.log("Ack");
                 break;
             case AckType.NackRequeue:
                 channel.nack(msg, false, true);
-                console.log("NackRequeue");
                 break;
             case AckType.NackDiscard:
                 channel.nack(msg, false, false);
-                console.log("NackDiscard");
                 break;
             default:
                 const unreachable: never = ackType;
