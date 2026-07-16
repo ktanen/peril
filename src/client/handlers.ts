@@ -7,6 +7,7 @@ import type { ConfirmChannel } from "amqplib";
 import { publishJSON } from "../internal/pubsub/publish.js";
 import { WarRecognitionsPrefix, ExchangePerilTopic } from "../internal/routing/routing.js";
 import { handleWar,  WarOutcome, type WarResolution } from "../internal/gamelogic/war.js";
+import { publishGameLog } from "./index.js";
 
 export function handlerPause(gs: GameState): (ps: PlayingState) => AckType {
     return (ps: PlayingState) => {
@@ -61,7 +62,7 @@ export function handlerMove(gs: GameState, ch: ConfirmChannel): (move: ArmyMove)
 }
 
 
-export function handlerWar(gs: GameState): (rw: RecognitionOfWar) => Promise<AckType> {
+export function handlerWar(gs: GameState, ch: ConfirmChannel): (rw: RecognitionOfWar) => Promise<AckType> {
     return async (rw: RecognitionOfWar) => {
         try {
             const warResolution: WarResolution = handleWar(gs, rw);
@@ -73,7 +74,34 @@ export function handlerWar(gs: GameState): (rw: RecognitionOfWar) => Promise<Ack
                 return AckType.NackDiscard;
             } else if (warResolution.result === WarOutcome.OpponentWon || warResolution.result === WarOutcome.YouWon ||
                 warResolution.result === WarOutcome.Draw) {
-                    return AckType.Ack;
+
+                    if (warResolution.result !== WarOutcome.Draw) {
+                        const winner = warResolution.winner;
+                        const loser = warResolution.loser;
+                        const logMessage = `${winner} won a war against ${loser}`;
+
+                        try {
+                            await publishGameLog(ch, rw.attacker.username, logMessage)
+                            return AckType.Ack;
+                        } catch (error) {
+                            console.error("Error publishing war outcome:", error);
+                            return AckType.NackRequeue;
+                        }
+
+                    } else {
+                        const attacker = rw.attacker.username;
+                        const defender = rw.defender.username;
+                        const logMessage = `A war between ${attacker} and ${defender} resulted in a draw`;
+                        try {
+                            await publishGameLog(ch, rw.attacker.username, logMessage)
+                            return AckType.Ack;
+                        } catch (error) {
+                            console.error("Error publishing war outcome:", error);
+                            return AckType.NackRequeue;
+                        }
+                    }
+
+                    
             } else {
                 console.error("Unexpected war outcome:");
                 return AckType.NackDiscard;

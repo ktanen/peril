@@ -1,14 +1,26 @@
-import amqp from "amqplib";
+import amqp, { type ConfirmChannel } from "amqplib";
 import { clientWelcome } from "../internal/gamelogic/gamelogic.js";
-import { declareAndBind, SimpleQueueType, subscribeJSON } from "../internal/pubsub/consume.js";
+import { SimpleQueueType, subscribeJSON } from "../internal/pubsub/consume.js";
 import { ExchangePerilDirect, PauseKey, ArmyMovesPrefix, 
-  ExchangePerilTopic, WarRecognitionsPrefix } from "../internal/routing/routing.js";
+  ExchangePerilTopic, WarRecognitionsPrefix, GameLogSlug } from "../internal/routing/routing.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
 import { getInput, commandStatus, printClientHelp, printQuit } from "../internal/gamelogic/gamelogic.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
 import { handlerPause, handlerMove, handlerWar } from "./handlers.js";
-import { publishJSON } from "../internal/pubsub/publish.js";
+import { publishJSON, publishMsgPack } from "../internal/pubsub/publish.js";
+import { type GameLog } from "../internal/gamelogic/logs.js";
+
+export async function publishGameLog(ch: ConfirmChannel, username: string,
+  message: string) {
+    const currentTime = new Date();
+    const log: GameLog = {
+      currentTime: currentTime,
+      message: message,
+      username: username
+    };
+    await publishMsgPack(ch, ExchangePerilTopic, `${GameLogSlug}.${username}`, log);
+  }
 
 async function shutdown(conn: amqp.ChannelModel, signal: string) {
   console.log(`received ${signal}, shutting down...`);
@@ -35,12 +47,6 @@ async function main() {
   const moveQueueName = `${ArmyMovesPrefix}.${username}`;
   const moveKey = `${ArmyMovesPrefix}.*`;
 
-/*   // Declare and bind queues
-  await  declareAndBind(conn, ExchangePerilDirect,
-  `pause.${username}`, PauseKey, SimpleQueueType.Transient);
-
-  await declareAndBind(conn, ExchangePerilTopic, moveQueueName,
-    moveKey, SimpleQueueType.Transient); */
   
   // Create new game state
 
@@ -55,7 +61,7 @@ async function main() {
     const warKey = `${WarRecognitionsPrefix}.*`;
 
     await subscribeJSON(conn, ExchangePerilTopic, "war", warKey, SimpleQueueType.Durable, 
-      handlerWar(gameState));
+      handlerWar(gameState,confirmChannel));
     
 
   
