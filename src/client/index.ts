@@ -11,7 +11,7 @@ import { handlerPause, handlerMove, handlerWar } from "./handlers.js";
 import { publishJSON, publishMsgPack } from "../internal/pubsub/publish.js";
 import { type GameLog } from "../internal/gamelogic/logs.js";
 
-export async function publishGameLog(ch: ConfirmChannel, username: string,
+export async function publishGameLog(ch: amqp.ConfirmChannel, username: string,
   message: string) {
     const currentTime = new Date();
     const log: GameLog = {
@@ -21,6 +21,7 @@ export async function publishGameLog(ch: ConfirmChannel, username: string,
     };
     await publishMsgPack(ch, ExchangePerilTopic, `${GameLogSlug}.${username}`, log);
   }
+
 
 async function shutdown(conn: amqp.ChannelModel, signal: string) {
   console.log(`received ${signal}, shutting down...`);
@@ -124,7 +125,9 @@ async function main() {
 
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error("Fatal error:", err);
+    process.exit(1);
+  });
+}

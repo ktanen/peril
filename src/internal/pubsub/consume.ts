@@ -1,6 +1,6 @@
 import amqp from "amqplib";
 import { type Channel } from "amqplib";
-
+import { decode } from "@msgpack/msgpack";
 export enum SimpleQueueType {
   Durable,
   Transient,
@@ -77,6 +77,67 @@ export async function subscribeJSON<T>(
         let ackType;
         try {
             ackType = await handler(messageContent);
+        }  catch (error) {
+            if (error instanceof Error) {
+                console.error(error.message);
+                
+            }
+
+            channel.nack(msg, false, false)
+            
+            return;
+        }
+        
+
+        switch (ackType) {
+            case AckType.Ack:
+                channel.ack(msg);
+                break;
+            case AckType.NackRequeue:
+                channel.nack(msg, false, true);
+                break;
+            case AckType.NackDiscard:
+                channel.nack(msg, false, false);
+                break;
+            default:
+                const unreachable: never = ackType;
+                console.error("Unexpected ack type:", unreachable);
+                return;
+        }
+
+    });
+}
+
+export async function subscribeMsgPack<T>(
+  conn: amqp.ChannelModel,
+  exchange: string,
+  queueName: string,
+  key: string,
+  queueType: SimpleQueueType,
+  handler: (data: T) => Promise<AckType> | AckType,
+): Promise<void> {
+    const [channel, queue] = await declareAndBind(conn, exchange, queueName, key, queueType);
+
+    channel.consume(queue.queue, async (msg: amqp.ConsumeMessage | null) => {
+        if (msg === null) {
+            return;
+        }
+        let messageContent;
+        try {
+            messageContent = decode(msg.content);
+        } catch (error) {
+            if (error instanceof Error) {
+                console.error(error.message);
+                
+            }
+            channel.nack(msg, false, false)
+            
+            return;
+        }
+        
+        let ackType;
+        try {
+            ackType = await handler(messageContent as T);
         }  catch (error) {
             if (error instanceof Error) {
                 console.error(error.message);

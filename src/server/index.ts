@@ -4,7 +4,10 @@ import { PauseKey, ExchangePerilDirect,
   ExchangePerilTopic, GameLogSlug } from "../internal/routing/routing.js";
 import { type PlayingState } from "../internal/gamelogic/gamestate.js";
 import { printServerHelp, getInput } from "../internal/gamelogic/gamelogic.js";
-import { declareAndBind, SimpleQueueType } from "../internal/pubsub/consume.js";
+import { SimpleQueueType, subscribeMsgPack } from "../internal/pubsub/consume.js";
+import { handlerLogs } from "../client/handlers.js";
+
+
 async function shutdown(conn: amqp.ChannelModel, signal: string) {
   console.log(`received ${signal}, shutting down...`);
   try {
@@ -25,10 +28,10 @@ async function main() {
   process.on("SIGTERM", () => shutdown(conn, "SIGTERM"));
   const confirmChannel = await conn.createConfirmChannel();
   
-  await declareAndBind(conn, ExchangePerilTopic, GameLogSlug, `${GameLogSlug}.*`,
-    SimpleQueueType.Durable);
 
 
+  await subscribeMsgPack(conn, ExchangePerilTopic, GameLogSlug, `${GameLogSlug}.*`,
+    SimpleQueueType.Durable, handlerLogs());
 
 
 

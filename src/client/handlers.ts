@@ -7,8 +7,22 @@ import type { ConfirmChannel } from "amqplib";
 import { publishJSON } from "../internal/pubsub/publish.js";
 import { WarRecognitionsPrefix, ExchangePerilTopic } from "../internal/routing/routing.js";
 import { handleWar,  WarOutcome, type WarResolution } from "../internal/gamelogic/war.js";
-import { publishGameLog } from "./index.js";
+import { publishGameLog } from "../client/index.js";
+import { writeLog, type GameLog } from "../internal/gamelogic/logs.js";
 
+export function handlerLogs(): (log: GameLog) => Promise<AckType> {
+  return async (log) => {
+    try {
+        await writeLog(log);
+        return AckType.Ack;
+    } catch (error) {
+        console.error("Error writing game log to disk: ", error);
+        return AckType.NackDiscard;
+    } finally {
+        process.stdout.write("> ");
+    }
+  };
+}
 export function handlerPause(gs: GameState): (ps: PlayingState) => AckType {
     return (ps: PlayingState) => {
         handlePause(gs, ps);
