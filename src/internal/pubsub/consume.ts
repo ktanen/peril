@@ -117,7 +117,7 @@ export async function subscribeMsgPack<T>(
   handler: (data: T) => Promise<AckType> | AckType,
 ): Promise<void> {
     const [channel, queue] = await declareAndBind(conn, exchange, queueName, key, queueType);
-
+    await channel.prefetch(10);
     channel.consume(queue.queue, async (msg: amqp.ConsumeMessage | null) => {
         if (msg === null) {
             return;

@@ -4,7 +4,8 @@ import { SimpleQueueType, subscribeJSON } from "../internal/pubsub/consume.js";
 import { ExchangePerilDirect, PauseKey, ArmyMovesPrefix, 
   ExchangePerilTopic, WarRecognitionsPrefix, GameLogSlug } from "../internal/routing/routing.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
-import { getInput, commandStatus, printClientHelp, printQuit } from "../internal/gamelogic/gamelogic.js";
+import { getInput, commandStatus, printClientHelp, printQuit ,
+  getMaliciousLog } from "../internal/gamelogic/gamelogic.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
 import { handlerPause, handlerMove, handlerWar } from "./handlers.js";
@@ -112,7 +113,40 @@ async function main() {
       printClientHelp();
       
     } else if (command === "spam") {
-      console.log("Spamming not allowed yet!");
+      if (userInput.length !== 2) {
+        console.log("Usage: spam <n>");
+        continue;
+      }
+
+      const inputNum = userInput[1];
+
+      if (!inputNum) {
+        console.log("Usage: spam <n>");
+        continue;
+      }
+
+      const n = parseInt(inputNum);
+
+      if (isNaN(n)) {
+        console.log("Usage: spam <n>, where <n> is a number");
+      }
+
+      for (let i = 0; i < n; i++) {
+        const maliciousLog = getMaliciousLog();
+        const currentTime = new Date();
+        const logObj: GameLog = {
+          currentTime: currentTime,
+          message: maliciousLog,
+          username: username,
+        };
+        await publishMsgPack(confirmChannel, ExchangePerilTopic, `game_logs.${username}`,logObj);
+
+      }
+
+      
+
+      
+
     } else if (command === "quit") {
       printQuit();
       process.exit(0);
